@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL | Restricted Access</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            height: 100%; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* --- Login Box --- */
+        #login-screen {
+            text-align: center;
+            border: 1px solid #0f0;
+            padding: 40px;
+            box-shadow: 0 0 15px #0f0;
+            background: rgba(0, 20, 0, 0.9);
+            z-index: 100;
+        }
+
+        input {
+            background: #000;
+            border: 1px solid #0f0;
+            color: #0f0;
+            padding: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+            outline: none;
+            margin-top: 20px;
+        }
+
+        /* --- Main UI (Hidden by default) --- */
+        #main-ui { display: none; text-align: center; }
+
+        .warning-box {
+            border: 2px solid #f00; padding: 30px;
+            background: rgba(255, 0, 0, 0.1);
+            box-shadow: 0 0 20px #f00; border-radius: 10px;
+        }
+
+        .btn-wipe {
+            background: transparent; color: #f00; border: 2px solid #f00;
+            padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; margin-top: 20px;
+        }
+
+        .btn-wipe:hover { background: #f00; color: #000; box-shadow: 0 0 30px #f00; }
+
+        /* --- Terminal Overlay --- */
+        #terminal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: #000; z-index: 9999; padding: 20px; overflow-y: auto;
+        }
+
+        .line { margin-bottom: 5px; font-size: 14px; }
+        .success { color: #0f0; }
+        .danger { color: #f00; }
+        .progress { color: #0ff; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h2 style="letter-spacing: 5px;">SYSTEM LOCKED</h2>
+        <p>ENTER ACCESS CODE</p>
+        <input type="password" id="passInput" maxlength="4" placeholder="****" oninput="checkPass()">
+        <p id="error" style="color: red; display: none; margin-top: 10px;">INVALID CODE</p>
+    </div>
+
+    <div id="main-ui">
+        <div class="warning-box">
+            <h1 style="color: #ff0;">MASTER CONTROL</h1>
+            <p>Target Node: <b>user_attempts</b></p>
+            <button class="btn-wipe" onclick="confirmPurge()">Execute Data Wipe</button>
+        </div>
+    </div>
+
+    <div id="terminal-overlay">
+        <div id="terminal-content"></div>
+    </div>
+
+    <script>
+        // --- Nayi Firebase Config ---
+        const firebaseConfig = { 
+            apiKey: "AIzaSyDPOtXmvVmk00FDUB0khBldybTJItrjXkE",
+            databaseURL: "https://ccmc-personal-default-rtdb.firebaseio.com",
+            projectId: "ccmc-personal"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Password Logic
+        function checkPass() {
+            const input = document.getElementById('passInput').value;
+            if(input === "0044") {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'block';
+            } else if(input.length === 4) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('passInput').value = '';
+            }
+        }
+
+        // Deletion Logic
+        const terminal = document.getElementById('terminal-content');
+        const overlay = document.getElementById('terminal-overlay');
+
+        function addLog(text, type = '') {
+            const div = document.createElement('div');
+            div.className = `line ${type}`;
+            div.innerHTML = text;
+            terminal.appendChild(div);
+            overlay.scrollTop = overlay.scrollHeight;
+        }
+
+        function confirmPurge() {
+            if (confirm("WARNING: All database records will be erased. Proceed?")) {
+                startHacking();
+            }
+        }
+
+        async function startHacking() {
+            document.getElementById('main-ui').style.display = 'none';
+            overlay.style.display = 'block';
+
+            const logs = [
+                {t: "> Booting kernel...", d: 400},
+                {t: "> Establishing encrypted tunnel...", d: 600},
+                {t: "> TARGET: ccmc-personal.firebaseio.com", d: 500},
+                {t: "> Accessing node: /user_attempts", d: 400},
+                {t: "> Authorizing Master Key...", d: 800},
+                {t: "> ACCESS GRANTED.", d: 300}
+            ];
+
+            for (let log of logs) {
+                await new Promise(r => setTimeout(r, log.d));
+                addLog(log.t, 'success');
+            }
+
+            for (let p = 0; p <= 100; p += 20) {
+                await new Promise(r => setTimeout(r, 300));
+                addLog(`> WIPING DATA clusters: ${p}%`, 'danger');
+            }
+
+            // Real Action
+            db.ref('user_attempts').remove()
+            .then(async () => {
+                addLog("> [SUCCESS] DATABASE PURGED.", 'success');
+                addLog("> Cleaning logs...", 'success');
+                await new Promise(r => setTimeout(r, 1500));
+                alert("Data permanently deleted.");
+                location.reload();
+            });
+        }
+    </script>
+</body>
+</html>
