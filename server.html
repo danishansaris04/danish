@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-FLIX Master Control</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #050505; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #0f0f0f; padding: 25px; border-radius: 15px; border: 1px solid #222; width: 350px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        h2 { text-align: center; font-size: 18px; letter-spacing: 2px; color: #00d2ff; margin-bottom: 20px; text-transform: uppercase; }
+        
+        /* Status Styling */
+        .u-flix-status { padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 20px; font-size: 13px; transition: 0.3s; border: 1px solid #333; }
+        .u-flix-status.live { color: #00ff88; border-color: #00ff88; background: rgba(0, 255, 136, 0.05); }
+        .u-flix-status.down { color: #ff4444; border-color: #ff4444; background: rgba(255, 68, 68, 0.05); }
+
+        .section-title { font-size: 11px; color: #555; text-transform: uppercase; margin: 15px 0 8px; letter-spacing: 1px; display: block; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px; }
+        
+        /* Input Styling */
+        input { width: 100%; padding: 10px; background: #181818; border: 1px solid #333; color: #fff; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; outline: none; font-size: 13px; }
+        input:focus { border-color: #00d2ff; }
+        
+        /* Button Grid */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        button { padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 12px; text-transform: uppercase; }
+        
+        .btn-site { background: #1a1a1a; color: #777; border: 1px solid #333; }
+        .btn-site.active { background: #00d2ff; color: #000; border-color: #00d2ff; box-shadow: 0 0 10px rgba(0, 210, 255, 0.2); }
+        
+        .btn-save { background: #00d2ff; color: #000; width: 100%; margin-top: 5px; }
+        .btn-red { background: #ff4444; color: #fff; }
+        .btn-green { background: #00ff88; color: #000; }
+        
+        button:hover { opacity: 0.8; transform: translateY(-1px); }
+        .helper-text { font-size: 10px; color: #555; margin-bottom: 10px; display: block; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>D-FLIX Control</h2>
+    
+    <div id="flixStatus" class="u-flix-status">SYNCING...</div>
+
+    <span class="section-title">Manual Switch</span>
+    <div class="grid">
+        <button id="siteBtn1" class="btn-site" onclick="setFlixSite('1')">Site 1</button>
+        <button id="siteBtn2" class="btn-site" onclick="setFlixSite('2')">Site 2</button>
+    </div>
+
+    <span class="section-title">Auto Schedule (Site 1 Time)</span>
+    <div class="grid">
+        <input type="time" id="startTime" title="Start Time">
+        <input type="time" id="endTime" title="End Time">
+    </div>
+    <span class="helper-text">Site 2 runs outside this time range</span>
+
+    <span class="section-title">Configuration</span>
+    <input type="text" id="url1" placeholder="URL for Site 1">
+    <input type="text" id="url2" placeholder="URL for Site 2">
+    
+    <button class="btn-save" onclick="saveFlixSettings()">Save All Settings</button>
+
+    <span class="section-title">Emergency Power</span>
+    <div class="grid">
+        <button class="btn-red" onclick="setFlixPower(true)">Stop</button>
+        <button class="btn-green" onclick="setFlixPower(false)">Start</button>
+    </div>
+</div>
+
+<script>
+    // Firebase Config (Updated with your API)
+    const fdbConfig = {
+        apiKey: "AIzaSyDUgUTVv07lz6AmFUe-oPvSRN7AxrZOcY0",
+  authDomain: "ccmcserver-4d9b7.firebaseapp.com",
+  databaseURL: "https://ccmcserver-4d9b7-default-rtdb.firebaseio.com",
+  projectId: "ccmcserver-4d9b7",
+  storageBucket: "ccmcserver-4d9b7.firebasestorage.app",
+  messagingSenderId: "299281705229",
+  appId: "1:299281705229:web:ac5b9975b42ef749fde844",
+  measurementId: "G-M33248LNVS"
+};
+    firebase.initializeApp(fdbConfig);
+    const fdb = firebase.database();
+
+    let schedule = { start: "", end: "" };
+
+    // Real-time Listener
+    fdb.ref('server_settings').on('value', snap => {
+        const d = snap.val() || {};
+        const st = document.getElementById('flixStatus');
+        if (!st) return;
+
+        // Status UI
+        if (d.isDown) { 
+            st.className = 'u-flix-status down'; 
+            st.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> &nbsp;SERVER IS DOWN'; 
+        } else { 
+            st.className = 'u-flix-status live'; 
+            st.innerHTML = `<i class="fa-solid fa-circle-dot"></i> &nbsp;SERVER LIVE: SITE ${d.active_site || '1'}`; 
+        }
+
+        // Update Inputs
+        document.getElementById('url1').value = d.site1 || '';
+        document.getElementById('url2').value = d.site2 || '';
+        document.getElementById('startTime').value = d.startTime || '';
+        document.getElementById('endTime').value = d.endTime || '';
+        
+        // Update Internal Schedule
+        schedule.start = d.startTime;
+        schedule.end = d.endTime;
+
+        // Active Button Class
+        const s1 = document.getElementById('siteBtn1');
+        const s2 = document.getElementById('siteBtn2');
+        if (s1) s1.classList.toggle('active', d.active_site === '1');
+        if (s2) s2.classList.toggle('active', d.active_site === '2');
+    });
+
+    // Auto-Scheduler Logic (Checks every 5 seconds)
+    setInterval(() => {
+        if (!schedule.start || !schedule.end) return;
+
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        let targetSite = "2"; // Default behavior
+        if (currentTime >= schedule.start && currentTime < schedule.end) {
+            targetSite = "1";
+        }
+
+        // Compare with current database state to prevent unnecessary writes
+        fdb.ref('server_settings/active_site').once('value', (snap) => {
+            if (snap.val() !== targetSite) {
+                fdb.ref('server_settings').update({ active_site: targetSite });
+                console.log("Automated Switch to Site: " + targetSite);
+            }
+        });
+    }, 5000);
+
+    // Control Functions
+    function setFlixPower(s) { fdb.ref('server_settings').update({ isDown: s }); }
+    
+    function setFlixSite(n) { fdb.ref('server_settings').update({ active_site: n }); }
+
+    function saveFlixSettings() {
+        fdb.ref('server_settings').update({
+            site1: document.getElementById('url1').value,
+            site2: document.getElementById('url2').value,
+            startTime: document.getElementById('startTime').value,
+            endTime: document.getElementById('endTime').value
+        }).then(() => alert('Configuration Saved Successfully!'));
+    }
+</script>
+
+</body>
+</html>
