@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>D-FLIX | ADMIN TERMINAL</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --b0: #050505; --b1: #0a0a0a; --b2: #151515;
+            --bd1: #330000; --bd3: #ff0000;
+            --t0: #ff0000; --t1: #880000;
+            --tx1: #ffffff; --tx3: #888888;
+            --sg: #00ff00; --sr: #ff0000;
+            --r1: 4px;
+        }
+
+        body { background: var(--b0); color: var(--tx1); font-family: 'Courier New', monospace; margin: 0; }
+        .u-content { padding: 20px; max-width: 500px; margin: 0 auto; }
+        
+        .u-card { 
+            background: var(--b1); border: 1px solid var(--bd1); border-radius: var(--r1); 
+            padding: 18px; margin-bottom: 15px; position: relative;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.05);
+        }
+        
+        .u-card-title { font-family: 'Syne'; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 9px; margin-bottom: 14px; text-transform: uppercase; color: var(--t0); letter-spacing: 1px; }
+        
+        .u-lbl { font-size: 10px; color: var(--tx3); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; display: block; }
+        
+        .u-inp { 
+            width: 100%; padding: 12px; margin-bottom: 12px; background: #000; 
+            border: 1px solid #222; border-radius: var(--r1); color: var(--sg); 
+            font-family: 'IBM Plex Mono'; font-size: 13px; outline: none; box-sizing: border-box;
+        }
+        .u-inp:focus { border-color: var(--t0); }
+        
+        .u-btn { 
+            padding: 12px; border: 1px solid var(--t0); cursor: pointer; font-weight: 700; font-size: 11px; 
+            font-family: 'Syne'; display: flex; align-items: center; justify-content: center; gap: 7px; 
+            text-transform: uppercase; transition: 0.3s; background: transparent; color: var(--t0);
+        }
+        .u-btn:hover { background: var(--t0); color: #000; }
+        
+        .u-btn-stop { border-color: var(--sr); color: var(--sr); }
+        .u-btn-stop:hover { background: var(--sr); color: #000; }
+        
+        .u-btn-start { border-color: var(--sg); color: var(--sg); }
+        .u-btn-start:hover { background: var(--sg); color: #000; }
+
+        .u-flix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        .u-site-btn { 
+            background: #000; border: 1px solid #222; padding: 14px; 
+            cursor: pointer; font-size: 11px; font-weight: 800; text-align: center;
+        }
+        .u-site-btn.active { border-color: var(--t0); color: var(--t0); box-shadow: inset 0 0 10px rgba(255,0,0,0.2); }
+
+        #flixStatus { 
+            font-size: 12px; padding: 10px; border: 1px solid #222; margin-bottom: 20px;
+            text-align: center; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="u-content">
+        <h2 style="font-family: 'Syne'; color: var(--t0); text-align: center;">D-FLIX ADMIN</h2>
+        
+        <div id="flixStatus">INITIALIZING SYSTEM...</div>
+
+        <div class="u-card">
+            <div class="u-card-title"><i class="fa-solid fa-skull"></i> Kill Switch (isDown)</div>
+            <div class="u-flix-grid">
+                <button class="u-btn u-btn-stop" onclick="setFlixPower(true)">ACTIVATE ERROR</button>
+                <button class="u-btn u-btn-start" onclick="setFlixPower(false)">RESTORE LIVE</button>
+            </div>
+            <p style="font-size: 9px; color: #555; margin-top: 10px;">*Activate Error turns on the Hacker UI for users.</p>
+        </div>
+
+        <div class="u-card">
+            <div class="u-card-title"><i class="fa-solid fa-route"></i> Traffic Routing</div>
+            <div class="u-flix-grid">
+                <div class="u-site-btn" id="siteBtn1" onclick="setFlixSite('1')">SITE 1</div>
+                <div class="u-site-btn" id="siteBtn2" onclick="setFlixSite('2')">SITE 2</div>
+            </div>
+        </div>
+
+        <div class="u-card">
+            <div class="u-card-title"><i class="fa-solid fa-link"></i> Data Nodes</div>
+            <label class="u-lbl">Site 1 URL</label>
+            <input type="text" class="u-inp" id="url1" placeholder="https://...">
+            <label class="u-lbl">Site 2 URL</label>
+            <input type="text" class="u-inp" id="url2" placeholder="https://...">
+            <button class="u-btn" style="width: 100%;" onclick="saveFlixUrls()">UPDATE DATABASE</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+  apiKey: "AIzaSyAquvWTbJaxuY4sN6rgXaCc4bOaxoatpIQ",
+  authDomain: "gpr-server.firebaseapp.com",
+  databaseURL: "https://gpr-server-default-rtdb.firebaseio.com",
+  projectId: "gpr-server",
+  storageBucket: "gpr-server.firebasestorage.app",
+  messagingSenderId: "850422388031",
+  appId: "1:850422388031:web:91829bce1597f688beef8a",
+  measurementId: "G-10V1D2MKBT"
+};
+
+
+        const app = initializeApp(firebaseConfig);
+        const fdb = getDatabase(app);
+        const settingsRef = ref(fdb, 'server_settings');
+
+        // Sync Admin UI with Firebase
+        onValue(settingsRef, (snap) => {
+            const d = snap.val() || {};
+            const st = document.getElementById('flixStatus');
+            
+            // Update Status Display
+            if (d.isDown) {
+                st.style.color = "#ff0000";
+                st.innerHTML = "STATUS: [ HACKER UI ACTIVE ]";
+            } else {
+                st.style.color = "#00ff00";
+                st.innerHTML = "STATUS: [ SERVER LIVE ]";
+            }
+
+            // Sync Inputs
+            document.getElementById('url1').value = d.site1 || '';
+            document.getElementById('url2').value = d.site2 || '';
+
+            // Sync Buttons
+            document.getElementById('siteBtn1').classList.toggle('active', d.active_site === '1');
+            document.getElementById('siteBtn2').classList.toggle('active', d.active_site === '2');
+        });
+
+        // Control Functions
+        window.setFlixPower = (s) => update(settingsRef, { isDown: s });
+        window.setFlixSite = (n) => update(settingsRef, { active_site: n });
+        window.saveFlixUrls = () => {
+            const s1 = document.getElementById('url1').value;
+            const s2 = document.getElementById('url2').value;
+            update(settingsRef, { site1: s1, site2: s2 })
+                .then(() => alert('Database Updated Successfully!'));
+        };
+    </script>
+</body>
+</html>
