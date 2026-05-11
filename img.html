@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Image Hub - Full Gallery</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p: #7c6fff;
+            --p2: #a89bff;
+            --g: #00d4a0;
+            --bg: #0d0c1a;
+            --s2: #1c1a35;
+            --bd: rgba(255, 255, 255, 0.07);
+            --t: #eeeef8;
+            --tm: rgba(238, 238, 248, 0.42);
+            --rad: 18px;
+            --rads: 13px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--t);
+            min-height: 100vh;
+            background-image: radial-gradient(ellipse 90% 55% at 0% -5%, rgba(124, 111, 255, 0.28) 0%, transparent 65%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .brand-icon {
+            width: 55px;
+            height: 55px;
+            background: linear-gradient(140deg, var(--p), var(--p2));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 12px;
+            box-shadow: 0 8px 25px rgba(124, 111, 255, 0.35);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid var(--bd);
+            border-radius: var(--rad);
+            padding: 18px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .card-head {
+            font-size: 15px;
+            font-weight: 800;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--p2);
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            border-radius: var(--rads);
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .upload-area:active {
+            transform: scale(0.98);
+            border-color: var(--p);
+        }
+
+        #imgUrl {
+            width: 100%;
+            padding: 12px 14px;
+            margin-top: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--bd);
+            border-radius: var(--rads);
+            color: var(--g);
+            font-size: 13px;
+            text-align: center;
+            outline: none;
+        }
+
+        .prog-wrap {
+            display: none;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            height: 5px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        .prog-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--p);
+            transition: width 0.3s;
+        }
+
+        .gal-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .gal-item {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--bd);
+            background: #000;
+        }
+
+        .gal-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .count-badge {
+            background: rgba(124, 111, 255, 0.15);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: var(--p2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="app-header">
+            <div class="brand-icon">🖼️</div>
+            <h2 style="font-weight: 900; letter-spacing: -0.5px;">Danish Storage</h2>
+        </div>
+
+        <div class="card">
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <i class="fa-solid fa-plus" style="margin-bottom:8px; font-size:20px;"></i>
+                <p style="font-size:14px; font-weight:700;">Upload Image</p>
+            </div>
+            <input type="file" id="fileInput" style="display:none" accept="image/*" onchange="uploadImage(this)">
+            
+            <div class="prog-wrap" id="progCont">
+                <div class="prog-bar" id="progBar"></div>
+            </div>
+
+            <input type="text" id="imgUrl" placeholder="Link automatically appears here" readonly onclick="copyUrl()">
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <span><i class="fa-solid fa-images"></i> All Images</span>
+                <span class="count-badge" id="imgCount">0</span>
+            </div>
+            <div id="galleryGrid" class="gal-grid">
+                <!-- Images will load here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDUTsVp_UQecYFhQwH_f2IrU7S8sD9s7Bo",
+            authDomain: "gprating-1b41a.firebaseapp.com",
+            databaseURL: "https://gprating-1b41a-default-rtdb.firebaseio.com",
+            projectId: "gprating-1b41a",
+            storageBucket: "gprating-1b41a.firebasestorage.app",
+            messagingSenderId: "904780180844",
+            appId: "1:904780180844:web:ff69e54352170e1a10d749"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        window.onload = loadGallery;
+
+        async function uploadImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const pb = document.getElementById('progBar');
+            const pc = document.getElementById('progCont');
+            pc.style.display = 'block';
+            pb.style.width = '30%';
+
+            const fd = new FormData();
+            fd.append('image', file);
+
+            try {
+                const res = await fetch('https://api.imgbb.com/1/upload?key=50af9f5367ae25509851af1e1ecf62b6', {
+                    method: 'POST', body: fd
+                });
+                const data = await res.json();
+                if (data.success) {
+                    pb.style.width = '100%';
+                    const url = data.data.url;
+                    document.getElementById('imgUrl').value = url;
+                    db.ref('image_gallery').push({ url: url, timestamp: Date.now() });
+                    setTimeout(() => pc.style.display = 'none', 1000);
+                }
+            } catch (e) { alert('Upload Failed'); pc.style.display = 'none'; }
+        }
+
+        function loadGallery() {
+            const grid = document.getElementById('galleryGrid');
+            // 'on' use kiya hai taaki bina refresh ke sari images update ho jayein
+            db.ref('image_gallery').on('value', snap => {
+                grid.innerHTML = '';
+                const data = snap.val();
+                if (!data) return;
+                
+                const keys = Object.keys(data).reverse();
+                document.getElementById('imgCount').innerText = keys.length;
+
+                keys.forEach(id => {
+                    grid.innerHTML += `
+                        <div class="gal-item" onclick="window.open('${data[id].url}', '_blank')">
+                            <img src="${data[id].url}" loading="lazy">
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function copyUrl() {
+            const el = document.getElementById('imgUrl');
+            if (!el.value) return;
+            el.select();
+            document.execCommand('copy');
+            const oldVal = el.value;
+            el.value = "COPIED!";
+            setTimeout(() => el.value = oldVal, 1000);
+        }
+    </script>
+</body>
+
+</html>
