@@ -592,65 +592,70 @@ function resetGateGateElement() {
 // 🆕 REDIRECT SIGN-IN ENGINE
 // ═══════════════════════════════
 // ═══════════════════════════════
-// NEW REDIRECT SIGN-IN ENGINE
+// 🆕 STEP 1: GOOGLE POPUP AUTH ENGINE (NO LOOP)
 // ═══════════════════════════════
 function signInWithGoogle() {
-    blockGateGateElement("Redirecting to Google Secure Services...");
+    blockGateGateElement("Opening Google Secure Sign-In...");
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Prompt select_account force karega taaki cache clear rahe
-    provider.setCustomParameters({ prompt: 'select_account' });
-    auth.signInWithRedirect(provider);
+    provider.setCustomParameters({ prompt: 'select_account' }); // Multi-accounts manage karne ke liye
+    
+    auth.signInWithPopup(provider).then((result) => {
+        if (result && result.user && result.user.displayName) {
+            processAccessFlow(result.user.displayName);
+        } else {
+            alert("Google Account me Display Name setup nahi hai!");
+            resetGateGateElement();
+        }
+    }).catch((error) => {
+        console.error("Popup Auth Error: ", error);
+        alert("Google Sign-In Failed: " + error.message);
+        resetGateGateElement();
+    });
 }
 
 // ═══════════════════════════════
-// CORE INITIALIZATION & CACHE CHECK
+// 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION
 // ═══════════════════════════════
 window.onload = () => {
     if (typeof APP_DATA === 'undefined') {
-        if (_loaderStatusEl) { _loaderStatusEl.innerText = 'CRITICAL ERROR: ccmc.js missing!'; _loaderStatusEl.style.color = '#ff4060'; }
+        if (_loaderStatusEl) { 
+            _loaderStatusEl.innerText = 'CRITICAL ERROR: ccmc.js missing!'; 
+            _loaderStatusEl.style.color = '#ff4060'; 
+        }
         return;
     }
-    blockGateGateElement("Authenticating local user tokens...");
+    blockGateGateElement("Checking secure session tokens...");
 
-    // STEP 1: Pehle check karo ki kya user abhi redirect ho kar wapas aaya hai?
-    auth.getRedirectResult().then((result) => {
-        if (result && result.user && result.user.displayName) {
-            // Agar redirect data mil gaya, toh direct login process karo
-            processAccessFlow(result.user.displayName);
+    // SINGLE EXECUTION OBSERVER: Yeh sirf page load par ek baar run hoga bina loop banaye
+    const unsubscribe = auth.onAuthStateChanged(user => {
+        unsubscribe(); // 👈 Sabse important line! Ek baar data milte hi check band, taaki loop zero ho jaye.
+        
+        if (user && user.displayName) {
+            console.log("Cached Session Found:", user.displayName);
+            processAccessFlow(user.displayName);
         } else {
-            // STEP 2: Agar redirect data nahi mila (normal refresh/return), toh persistent state check karo
-            const unsubscribe = auth.onAuthStateChanged(user => {
-                unsubscribe(); // Observer ko turant unsubscribe karo taaki loop na bane
-                if (user && user.displayName) {
-                    processAccessFlow(user.displayName);
-                } else {
-                    // Agar session bhi nahi mila, tabhi login screen dikhao
-                    hideLoader(() => {
-                        document.getElementById('accessGate').style.display = 'flex';
-                        resetGateGateElement();
-                    });
-                }
+            console.log("No previous session. Displaying login panel.");
+            hideLoader(() => {
+                document.getElementById('accessGate').style.display = 'flex';
+                showGateScreen('loginScreen');
+                resetGateGateElement();
             });
         }
-    }).catch((error) => {
-        console.error("Auth Routine Error: ", error);
-        // Error hone par bhee screen free na ho, login gate open ho jaye
-        hideLoader(() => {
-            document.getElementById('accessGate').style.display = 'flex';
-            resetGateGateElement();
-        });
     });
 };
 
+// ═══════════════════════════════
+// 🆕 STEP 3: DATABASE ACCESS ROUTING
+// ═══════════════════════════════
 function processAccessFlow(fullName) {
     userName = fullName;
     const key = nameToKey(fullName);
     localStorage.setItem('ccmc_user', fullName);
 
-    db.ref('user_access/' + key).once('value', snap => {
+    db.ref('user_access/' + key).once('value').then(snap => {
         const data = snap.val();
 
-        // New Profile Sync Flow
+        // New Profile Creation Logic
         if (!data) {
             db.ref('user_access/' + key).set({
                 name: fullName,
@@ -672,13 +677,26 @@ function processAccessFlow(fullName) {
         userAccessId = data.accessId || 'GOOGLE_VERIFIED';
         localStorage.setItem('ccmc_access_id', userAccessId);
 
-        if (data.status === 'approved' || data.status === 'frozen') {
-            hideLoader(() => { grantAccess(); listenForApproval(key); });
-        } else if (data.status === 'pending') {
-            hideLoader(() => { document.getElementById('accessGate').style.display = 'flex'; showPendingScreen(fullName); listenForApproval(key); });
-        } else if (data.status === 'blocked') {
-            hideLoader(() => { document.getElementById('accessGate').style.display = 'flex'; showGateScreen('blockedScreen'); listenForApproval(key); });
-        }
+        // Routing engine handlers
+        hideLoader(() => {
+            if (data.status === 'approved' || data.status === 'frozen') {
+                document.getElementById('accessGate').style.display = 'none';
+                grantAccess();
+                listenForApproval(key);
+            } else if (data.status === 'pending') {
+                document.getElementById('accessGate').style.display = 'flex';
+                showPendingScreen(fullName);
+                listenForApproval(key);
+            } else if (data.status === 'blocked') {
+                document.getElementById('accessGate').style.display = 'flex';
+                showGateScreen('blockedScreen');
+                listenForApproval(key);
+            }
+        });
+    }).catch(err => {
+        console.error("DB Fetch Error:", err);
+        alert("Database connection dropped. Reloading page.");
+        window.location.reload();
     });
 }
 
