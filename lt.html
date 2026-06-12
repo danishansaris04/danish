@@ -600,6 +600,9 @@ function signInWithGoogle() {
 // ═══════════════════════════════
 // CORE INITIALIZATION & CACHE CHECK
 // ═══════════════════════════════
+// ═══════════════════════════════
+// CORE INITIALIZATION & CACHE CHECK (FIXED)
+// ═══════════════════════════════
 window.onload = () => {
     if (typeof APP_DATA === 'undefined') {
         if (_loaderStatusEl) { _loaderStatusEl.innerText = 'CRITICAL ERROR: ccmc.js missing!'; _loaderStatusEl.style.color = '#ff4060'; }
@@ -607,30 +610,32 @@ window.onload = () => {
     }
     blockGateGateElement("Authenticating local user tokens...");
 
-    // ✅ Capture data if user just redirected back from Google Login
-    auth.getRedirectResult().then((result) => {
-        if (result && result.user) {
-            const googleName = result.user.displayName;
-            if (googleName) {
-                processAccessFlow(googleName);
-            }
+    // 1. Sabse pehle persistent session check karein taaki bar-bar login na mangey
+    auth.onAuthStateChanged(user => {
+        if (user && user.displayName) {
+            // Agar user already active session me h, toh direct access do
+            processAccessFlow(user.displayName);
         } else {
-            // ✅ PERSISTENT SESSION CHECK: Bar-bar code validation prevent karega
-            auth.onAuthStateChanged(user => {
-                if (user && user.displayName) {
-                    processAccessFlow(user.displayName);
+            // 2. Agar active session nahi h, toh check karo kya abhi-abhi redirect se wapas aaya hai
+            auth.getRedirectResult().then((result) => {
+                if (result && result.user && result.user.displayName) {
+                    processAccessFlow(result.user.displayName);
                 } else {
+                    // 3. Agar na active session hai aur na redirect token, tab login screen dikhao
                     hideLoader(() => {
                         document.getElementById('accessGate').style.display = 'flex';
                         resetGateGateElement();
                     });
                 }
+            }).catch((error) => {
+                console.error("Auth Routine Error: ", error);
+                alert("Authentication Interrupted: " + error.message);
+                hideLoader(() => {
+                    document.getElementById('accessGate').style.display = 'flex';
+                    resetGateGateElement();
+                });
             });
         }
-    }).catch((error) => {
-        console.error("Auth Routine Error: ", error);
-        alert("Authentication Interrupted: " + error.message);
-        window.location.reload();
     });
 };
 
