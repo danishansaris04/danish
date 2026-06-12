@@ -591,17 +591,19 @@ function resetGateGateElement() {
 // ═══════════════════════════════
 // 🆕 REDIRECT SIGN-IN ENGINE
 // ═══════════════════════════════
+// ═══════════════════════════════
+// NEW REDIRECT SIGN-IN ENGINE
+// ═══════════════════════════════
 function signInWithGoogle() {
     blockGateGateElement("Redirecting to Google Secure Services...");
     const provider = new firebase.auth.GoogleAuthProvider();
+    // Prompt select_account force karega taaki cache clear rahe
+    provider.setCustomParameters({ prompt: 'select_account' });
     auth.signInWithRedirect(provider);
 }
 
 // ═══════════════════════════════
 // CORE INITIALIZATION & CACHE CHECK
-// ═══════════════════════════════
-// ═══════════════════════════════
-// CORE INITIALIZATION & CACHE CHECK (FIXED)
 // ═══════════════════════════════
 window.onload = () => {
     if (typeof APP_DATA === 'undefined') {
@@ -610,32 +612,33 @@ window.onload = () => {
     }
     blockGateGateElement("Authenticating local user tokens...");
 
-    // 1. Sabse pehle persistent session check karein taaki bar-bar login na mangey
-    auth.onAuthStateChanged(user => {
-        if (user && user.displayName) {
-            // Agar user already active session me h, toh direct access do
-            processAccessFlow(user.displayName);
+    // STEP 1: Pehle check karo ki kya user abhi redirect ho kar wapas aaya hai?
+    auth.getRedirectResult().then((result) => {
+        if (result && result.user && result.user.displayName) {
+            // Agar redirect data mil gaya, toh direct login process karo
+            processAccessFlow(result.user.displayName);
         } else {
-            // 2. Agar active session nahi h, toh check karo kya abhi-abhi redirect se wapas aaya hai
-            auth.getRedirectResult().then((result) => {
-                if (result && result.user && result.user.displayName) {
-                    processAccessFlow(result.user.displayName);
+            // STEP 2: Agar redirect data nahi mila (normal refresh/return), toh persistent state check karo
+            const unsubscribe = auth.onAuthStateChanged(user => {
+                unsubscribe(); // Observer ko turant unsubscribe karo taaki loop na bane
+                if (user && user.displayName) {
+                    processAccessFlow(user.displayName);
                 } else {
-                    // 3. Agar na active session hai aur na redirect token, tab login screen dikhao
+                    // Agar session bhi nahi mila, tabhi login screen dikhao
                     hideLoader(() => {
                         document.getElementById('accessGate').style.display = 'flex';
                         resetGateGateElement();
                     });
                 }
-            }).catch((error) => {
-                console.error("Auth Routine Error: ", error);
-                alert("Authentication Interrupted: " + error.message);
-                hideLoader(() => {
-                    document.getElementById('accessGate').style.display = 'flex';
-                    resetGateGateElement();
-                });
             });
         }
+    }).catch((error) => {
+        console.error("Auth Routine Error: ", error);
+        // Error hone par bhee screen free na ho, login gate open ho jaye
+        hideLoader(() => {
+            document.getElementById('accessGate').style.display = 'flex';
+            resetGateGateElement();
+        });
     });
 };
 
@@ -1067,4 +1070,4 @@ function smartBack() { if (document.referrer !== "" && window.history.length > 1
 document.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
-    </html>
+</html>
