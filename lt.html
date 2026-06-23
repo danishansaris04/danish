@@ -594,27 +594,28 @@ function resetGateGateElement() {
 // ═══════════════════════════════
 // 🆕 STEP 1: GOOGLE POPUP AUTH ENGINE (NO LOOP)
 // ═══════════════════════════════
+// ═══════════════════════════════
+// 🆕 STEP 1: GOOGLE REDIRECT AUTH ENGINE (FIXED FOR WEBVIEWS)
+// ═══════════════════════════════
 function signInWithGoogle() {
     blockGateGateElement("Opening Google Secure Sign-In...");
     const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' }); // Multi-accounts manage karne ke liye
+    provider.setCustomParameters({ prompt: 'select_account' });
     
-    auth.signInWithPopup(provider).then((result) => {
-        if (result && result.user && result.user.displayName) {
-            processAccessFlow(result.user.displayName);
-        } else {
-            alert("Google Account me Display Name setup nahi hai!");
-            resetGateGateElement();
-        }
-    }).catch((error) => {
-        console.error("Popup Auth Error: ", error);
+    // WebViews aur Mobile ke liye Redirect hamesha safe aur compliant hota hai
+    auth.signInWithRedirect(provider).catch((error) => {
+        console.error("Redirect Auth Error: ", error);
         alert("Google Sign-In Failed: " + error.message);
         resetGateGateElement();
     });
 }
 
+
 // ═══════════════════════════════
 // 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION
+// ═══════════════════════════════
+// ═══════════════════════════════
+// 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION + REDIRECT RESULT HANDLER
 // ═══════════════════════════════
 window.onload = () => {
     if (typeof APP_DATA === 'undefined') {
@@ -626,23 +627,34 @@ window.onload = () => {
     }
     blockGateGateElement("Checking secure session tokens...");
 
-    // SINGLE EXECUTION OBSERVER: Yeh sirf page load par ek baar run hoga bina loop banaye
-    const unsubscribe = auth.onAuthStateChanged(user => {
-        unsubscribe(); // 👈 Sabse important line! Ek baar data milte hi check band, taaki loop zero ho jaye.
-        
-        if (user && user.displayName) {
-            console.log("Cached Session Found:", user.displayName);
-            processAccessFlow(user.displayName);
+    // Pehle check karein agar user redirect hokar login karke aaya hai
+    auth.getRedirectResult().then((result) => {
+        if (result && result.user && result.user.displayName) {
+            processAccessFlow(result.user.displayName);
         } else {
-            console.log("No previous session. Displaying login panel.");
-            hideLoader(() => {
-                document.getElementById('accessGate').style.display = 'flex';
-                showGateScreen('loginScreen');
-                resetGateGateElement();
+            // Agar redirect result nahi hai, toh check karein pehle se active login session hai ya nahi
+            const unsubscribe = auth.onAuthStateChanged(user => {
+                unsubscribe(); // Singleton call observer pattern to avoid loop
+                
+                if (user && user.displayName) {
+                    console.log("Cached Session Found:", user.displayName);
+                    processAccessFlow(user.displayName);
+                } else {
+                    console.log("No previous session. Displaying login panel.");
+                    hideLoader(() => {
+                        document.getElementById('accessGate').style.display = 'flex';
+                        showGateScreen('loginScreen');
+                        resetGateGateElement();
+                    });
+                }
             });
         }
+    }).catch((error) => {
+        console.error("Redirect handling error:", error);
+        resetGateGateElement();
     });
 };
+
 
 // ═══════════════════════════════
 // 🆕 STEP 3: DATABASE ACCESS ROUTING
