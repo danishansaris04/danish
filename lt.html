@@ -610,12 +610,8 @@ function signInWithGoogle() {
     });
 }
 
-
 // ═══════════════════════════════
-// 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION
-// ═══════════════════════════════
-// ═══════════════════════════════
-// 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION + REDIRECT RESULT HANDLER
+// 🆕 STEP 2: SECURE LIFECYCLE INITIALIZATION + REDIRECT RESULT HANDLER (FIXED)
 // ═══════════════════════════════
 window.onload = () => {
     if (typeof APP_DATA === 'undefined') {
@@ -627,31 +623,36 @@ window.onload = () => {
     }
     blockGateGateElement("Checking secure session tokens...");
 
-    // Pehle check karein agar user redirect hokar login karke aaya hai
-    auth.getRedirectResult().then((result) => {
-        if (result && result.user && result.user.displayName) {
-            processAccessFlow(result.user.displayName);
+    // 1. सबसे पहले ग्लोबल ऑथेंटिकेशन स्टेट को सुनें (बिना तुरंत बंद किए)
+    auth.onAuthStateChanged(user => {
+        if (user && user.displayName) {
+            console.log("Cached Session Found:", user.displayName);
+            processAccessFlow(user.displayName);
         } else {
-            // Agar redirect result nahi hai, toh check karein pehle se active login session hai ya nahi
-            const unsubscribe = auth.onAuthStateChanged(user => {
-                unsubscribe(); // Singleton call observer pattern to avoid loop
-                
-                if (user && user.displayName) {
-                    console.log("Cached Session Found:", user.displayName);
-                    processAccessFlow(user.displayName);
+            console.log("No cached session. Checking redirect results...");
+            
+            // 2. अगर एक्टिव सेशन नहीं है, तब चेक करें कि क्या यूजर अभी-अभी Google Sign-In से रीडायरेक्ट होकर वापस आया है
+            auth.getRedirectResult().then((result) => {
+                if (result && result.user && result.user.displayName) {
+                    console.log("Redirect Login Successful:", result.user.displayName);
+                    processAccessFlow(result.user.displayName);
                 } else {
-                    console.log("No previous session. Displaying login panel.");
+                    console.log("No redirect result found. Displaying login panel.");
                     hideLoader(() => {
                         document.getElementById('accessGate').style.display = 'flex';
                         showGateScreen('loginScreen');
                         resetGateGateElement();
                     });
                 }
+            }).catch((error) => {
+                console.error("Redirect handling error:", error);
+                hideLoader(() => {
+                    document.getElementById('accessGate').style.display = 'flex';
+                    showGateScreen('loginScreen');
+                    resetGateGateElement();
+                });
             });
         }
-    }).catch((error) => {
-        console.error("Redirect handling error:", error);
-        resetGateGateElement();
     });
 };
 
@@ -1100,4 +1101,4 @@ function smartBack() { if (document.referrer !== "" && window.history.length > 1
 document.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
-            </html>
+</html>
